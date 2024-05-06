@@ -1,0 +1,389 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Fire Detection</title>
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css"
+      integrity="sha512-SbiR/eusphKoMVVXysTKG/7VseWii+Y3FdHrt0EpKgpToZeemhqHeZeLWLhJutz/2ut2Vw1uQEj2MbRF+TVBUA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <meta charset="utf-8" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta name="description" content="Fire Detection using satellite images" />
+    <meta
+      name="keywords"
+      content="Microsoft maps, map, gis, API, SDK, Bing, Bing Maps"
+    />
+
+    <script>
+      var map;
+
+      function GetMap() {
+        map = new Microsoft.Maps.Map("#myMap", {
+          mapTypeId: Microsoft.Maps.MapTypeId.aerial,
+          showZoomButtons: false, //Hide the default zoom buttons and create custom ones.
+        });
+
+        var tryingToZoomOut = false;
+
+        //If the mouse wheel is used to zoom, switch between aerial and birdseye as needed.
+        Microsoft.Maps.Events.addHandler(map, "mousewheel", function (e) {
+          var mapType = map.getMapTypeId();
+          var zoom = map.getZoom();
+
+          //If at zoom level 20 and the user tries to zoom out twice with the mouse wheel, then switch to aerial.
+          if (
+            mapType == Microsoft.Maps.MapTypeId.birdseye &&
+            zoom == 20 &&
+            e.wheelDelta < 0
+          ) {
+            if (tryingToZoomOut) {
+              map.setView({
+                mapTypeId: Microsoft.Maps.MapTypeId.aerial,
+                zoom: 19,
+              });
+              tryingToZoomOut = false;
+            } else {
+              tryingToZoomOut = true;
+            }
+          } else if (
+            mapType == Microsoft.Maps.MapTypeId.birdseye &&
+            zoom == 19 &&
+            e.wheelDelta < 0
+          ) {
+            map.setView({ mapTypeId: Microsoft.Maps.MapTypeId.aerial });
+            tryingToZoomOut = false;
+          } else if (
+            mapType == Microsoft.Maps.MapTypeId.aerial &&
+            zoom >= 19 &&
+            e.wheelDelta > 0
+          ) {
+            switchToBirdseye();
+          }
+        });
+
+        //When the map moves, if in aerial and at zoom level 19, check for birdseye imagery.
+        Microsoft.Maps.Events.addHandler(map, "viewchangeend", function (e) {
+          if (
+            map.getMapTypeId() === Microsoft.Maps.MapTypeId.aerial &&
+            map.getZoom() >= 19
+          ) {
+            switchToBirdseye();
+          }
+        });
+
+        Microsoft.Maps.Events.addHandler(map, "viewchangeend", function (e) {
+          let lon = map.getCenter().longitude;
+          let lat = map.getCenter().latitude;
+          let zoom = map.getZoom();
+          document.getElementById("lat").value = lat;
+          document.getElementById("lon").value = lon;
+          document.getElementById("zoom").value = zoom;
+        });
+
+        //Add logic for custom zoom buttons.
+        document.getElementById("zoomIn").onclick = function () {
+          var z = map.getZoom() + 1;
+          map.setView({ zoom: z });
+
+          if (
+            z === 19 &&
+            map.getMapTypeId() === Microsoft.Maps.MapTypeId.aerial
+          ) {
+            map.setView({ zoom: z });
+            switchToBirdseye();
+          } else {
+            map.setView({ zoom: z });
+          }
+        };
+
+        document.getElementById("zoomOut").onclick = function () {
+          var z = map.getZoom() - 1;
+
+          if (
+            z === 18 &&
+            map.getMapTypeId() === Microsoft.Maps.MapTypeId.birdseye
+          ) {
+            map.setView({
+              zoom: z,
+              mapTypeId: Microsoft.Maps.MapTypeId.aerial,
+            });
+          } else {
+            map.setView({ zoom: z });
+          }
+        };
+
+        Microsoft.Maps.Events.addHandler(
+          map,
+          "maptypechanged",
+          updateZoomButtons
+        );
+        updateZoomButtons();
+      }
+
+      function switchToBirdseye() {
+        //Verify that birdseye imagery is available before trying to switch into it.
+        Microsoft.Maps.getIsBirdseyeAvailable(
+          map.getCenter(),
+          map.getHeading(),
+          function (isAvailable) {
+            if (isAvailable) {
+              map.setView({ mapTypeId: Microsoft.Maps.MapTypeId.birdseye });
+            }
+          }
+        );
+      }
+
+      function updateZoomButtons() {
+        switch (map.getMapTypeId()) {
+          case Microsoft.Maps.MapTypeId.birdseye:
+          case Microsoft.Maps.MapTypeId.aerial:
+          case Microsoft.Maps.MapTypeId.canvasDark:
+            document.getElementById("zoomOut").className = "darkZoom";
+            document.getElementById("zoomIn").className = "darkZoom";
+            break;
+          default:
+            document.getElementById("zoomOut").className = "lightZoom";
+            document.getElementById("zoomIn").className = "lightZoom";
+            break;
+        }
+      }
+    </script>
+
+    <style>
+      .mapContainer,
+      #myMap {
+        position: relative;
+        width: 500px;
+        height: 500px;
+      }
+
+      #zoomOut,
+      #zoomIn {
+        text-align: center;
+        font-size: 25px;
+        position: absolute;
+        right: 33px;
+        font-weight: bold;
+        width: 30px;
+        height: 30px;
+        border-radius: 16px;
+        -moz-user-select: -moz-none;
+        -webkit-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        z-index: 1001;
+      }
+
+      #zoomOut {
+        line-height: 24px;
+        top: 180px;
+      }
+
+      #zoomIn {
+        top: 130px;
+        line-height: 30px;
+      }
+
+      .darkZoom {
+        background-color: #333333;
+        border: 1px solid #fff;
+        color: white;
+      }
+
+      .darkZoom:hover {
+        background-color: #808080;
+      }
+
+      .lightZoom {
+        background-color: white;
+        border: 1px solid #000;
+        color: black;
+      }
+
+      .lightZoom:hover {
+        background-color: #cccccc;
+      }
+      /* Style the tab */
+      .tab {
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 5px;
+        width:551px;
+        color: white;
+        background-color: #7d7d7d;
+      }
+
+      /* Style the buttons that are used to open the tab content */
+      .tab button {
+        background-color: inherit;
+        float: left;
+        border: none;
+        outline: none;
+        color: white;
+        cursor: pointer;
+        padding: 14px 16px;
+        transition: 0.3s;
+      }
+
+      /* Change background color of buttons on hover */
+      .tab button:hover {
+        background-color: #ddd;
+      }
+
+      /* Create an active/current tablink class */
+      .tab button.active {
+        background-color: #474747;
+      }
+
+      /* Style the tab content */
+      .tabcontent {
+        padding-left: 25px;
+        padding-top: 10px;
+        display: none;
+        height: 500px;
+        width: 500px;
+        border-top: none;
+        animation: fadeEffect 1s; /* Fading effect takes 1 second */
+      }
+
+      @keyframes fadeEffect {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
+    <script type="text/javascript">
+      function openCity(evt, cityName) {
+        // Declare all variables
+        var i, tabcontent, tablinks;
+
+        // Get all elements with class="tabcontent" and hide them
+        tabcontent = document.getElementsByClassName("tabcontent");
+        for (i = 0; i < tabcontent.length; i++) {
+          tabcontent[i].style.display = "none";
+        }
+
+        // Get all elements with class="tablinks" and remove the class "active"
+        tablinks = document.getElementsByClassName("tablinks");
+        for (i = 0; i < tablinks.length; i++) {
+          tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+
+        // Show the current tab, and add an "active" class to the button that opened the tab
+        document.getElementById(cityName).style.display = "block";
+        evt.currentTarget.className += " active";
+      }
+    </script>
+  </head>
+  <body>
+    <div class="container mx-auto">
+      <div class="row">
+        <div class="col-sm-10 col-md-6 offset-md-3 py-2">
+          <br />
+          <h1 align="center">Forest Fire Detection</h1>
+          <hr />
+        </div>
+        <div class="row mb-5 mx-3">
+          <div class="col-sm-10 col-md-6">
+            <div class="tab">
+              <button
+                class="tablinks"
+                id="tab1"
+                onclick="openCity(event, 'Satellite')"
+              >
+                Satellite Imagery
+              </button>
+              <button class="tablinks" id="tab2" onclick="openCity(event, 'Image')">
+                Upload Image
+              </button>
+            </div>
+            <div id="Satellite" class="tabcontent">
+              <div class="mapContainer">
+                <div id="myMap"></div>
+                <span id="zoomOut">‒</span>
+                <span id="zoomIn">+</span>
+              </div>
+            </div>
+            <div id="Image" class="tabcontent">
+              <img id="output_image" height="300px" width="300px" />
+              <input
+                type="file"
+                id="upload"
+                accept="image/*"
+                onchange="preview_image(event)"
+              />
+            </div>
+            
+          </div>
+            <div class="col-sm-10 col-md-6 ml-3">
+              <form id="form">
+                <label for="formGroupExampleInput">Latitude</label>
+                <div class="input-group shadow-sm bg-white rounded">
+                  <input
+                    type="text"
+                    class="form-control shadow-none"
+                    id="lat"
+                    placeholder="Enter your question"
+                  />
+                </div>
+                <label for="formGroupExampleInput">Longitude</label>
+                <div class="input-group shadow-sm bg-white rounded">
+                  <input
+                    type="text"
+                    class="form-control shadow-none"
+                    id="lon"
+                    placeholder="Enter your question"
+                  />
+                  <input
+                    type="text"
+                    class="form-control shadow-none"
+                    id="zoom"
+                    style="display: none"
+                    placeholder="Enter your question"
+                  />
+                </div>
+                <button type="submit" id="submit" class="btn btn-primary my-2">
+                  Check for forest fire
+                  <span
+                    id="loading"
+                    style="display: none"
+                    class="spinner-border spinner-border-sm text-light"
+                  ></span>
+                </button>
+                <div class="form-group my-2">
+                  <label for="formGroupExampleInput2">Confidence Scores</label>
+                  <textarea
+                    class="form-control shadow-sm bg-white rounded"
+                    id="answer"
+                    rows="10"
+                    readonly
+                  ></textarea>
+                </div>
+              </form>
+            </div>
+        </div>
+      </div>
+    </div>
+    <script type="text/javascript">
+      function preview_image(e) {
+        get_image(e);
+      }
+    </script>
+    <script type="text/javascript">
+      document.getElementById("tab1").click();
+    </script>
+    <script src="./static/MapScript.js"></script>
+    <script src="./static/appScript.js"></script>
+  </body>
+</html>
